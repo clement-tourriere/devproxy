@@ -262,14 +262,41 @@ DevProxy works without configuration, but offers these optional settings:
 | `devproxy.domain` | Custom domain | `api.mycompany.localhost` |
 | `devproxy.port` | Custom port | `3000` |
 
+## ⚠️ Important Limitations
+
+### Container-to-Container Communication
+
+**`.localhost` domains do NOT work for container-to-container communication** because they resolve to 127.0.0.1 inside containers.
+
+**✅ What works:**
+- **Browser/Host access**: `https://myapp.localhost` ✅
+- **Container-to-container via container names**: `http://myapp` ✅  
+- **Container-to-container via IPs**: `http://172.18.0.3` ✅
+
+**❌ What doesn't work:**
+- **Container-to-container via .localhost**: `http://myapp.localhost` ❌ (resolves to 127.0.0.1)
+
+### Docker Environment Compatibility
+
+**✅ Works with:**
+- Docker Engine on Linux
+- Docker Desktop on macOS (in most configurations)
+- Any environment where containers get individual IP addresses
+
+**❌ May not work with:**
+- Docker Desktop with certain network configurations
+- Environments where containers share the host network
+- Systems where container IPs are not directly routable
+
 ### DNS Setup (Optional)
 
-For `*.localhost` domains to work system-wide, you may need to configure DNS:
+For `*.localhost` domains to work system-wide in all applications:
 
 **macOS/Linux**:
 ```bash
 # Add to /etc/hosts (requires sudo)
-127.0.0.1 *.localhost
+127.0.0.1 myapp.localhost
+127.0.0.1 devproxy-dashboard.localhost
 
 # Or use dnsmasq for wildcard support
 brew install dnsmasq
@@ -280,8 +307,10 @@ sudo brew services start dnsmasq
 **Windows**:
 ```powershell
 # Add to C:\Windows\System32\drivers\etc\hosts
-127.0.0.1 *.localhost
+127.0.0.1 myapp.localhost
+127.0.0.1 devproxy-dashboard.localhost
 ```
+
 
 ## 🔍 Troubleshooting
 
