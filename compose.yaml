@@ -1,0 +1,81 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: devproxy-caddy
+    restart: unless-stopped
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --watch
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - CADDY_ADMIN=0.0.0.0:2019
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - devproxy
+    labels:
+      - devproxy.enabled=false
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:2019/config/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  devproxy:
+    build: .
+    container_name: devproxy-manager
+    restart: unless-stopped
+    depends_on:
+      caddy:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CADDY_ADMIN_URL=http://caddy:2019
+    networks:
+      - devproxy
+    labels:
+      - devproxy.enabled=false
+    healthcheck:
+      test: ["CMD", "/devproxy", "--health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: devproxy-dashboard
+    restart: unless-stopped
+    depends_on:
+      devproxy:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DASHBOARD_PORT=8080
+      - CADDY_ADMIN_URL=http://caddy:2019
+    networks:
+      - devproxy
+    labels:
+      - devproxy.domain=devproxy-dashboard.localhost
+    healthcheck:
+      test: ["CMD", "/dashboard", "--health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  devproxy:
+    name: devproxy
+    driver: bridge

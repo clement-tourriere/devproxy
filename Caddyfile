@@ -1,0 +1,15 @@
+{
+	admin 0.0.0.0:2019
+	
+	# Enable local CA for localhost domains
+	local_certs
+
+	# Default response for unmatched requests
+	http_port 80
+	https_port 443
+}
+
+# Default catch-all for unmatched domains
+:80, :443 {
+	respond "DevProxy is running. Add containers to see them here!" 200
+}
