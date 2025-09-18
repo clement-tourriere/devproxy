@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"devproxy/internal/config"
 	"devproxy/internal/proxy"
 )
 
@@ -18,11 +19,27 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Load configuration
+	cfg := config.Load()
+
+	// Set log level based on configuration
+	var logLevel slog.Level
+	switch cfg.DevProxy.LogLevel {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: logLevel,
 	}))
 
-	manager, err := proxy.NewManager(logger)
+	manager, err := proxy.NewManager(cfg, logger)
 	if err != nil {
 		logger.Error("Failed to create manager", "error", err)
 		os.Exit(1)

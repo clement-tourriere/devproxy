@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"devproxy/internal/config"
 	"devproxy/internal/dashboard"
 	"devproxy/internal/proxy"
 )
@@ -19,19 +20,35 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Load configuration
+	cfg := config.Load()
+
+	// Set log level based on configuration
+	var logLevel slog.Level
+	switch cfg.DevProxy.LogLevel {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: logLevel,
 	}))
 
 	// Create proxy manager to access container data
-	manager, err := proxy.NewManager(logger)
+	manager, err := proxy.NewManager(cfg, logger)
 	if err != nil {
 		logger.Error("Failed to create proxy manager", "error", err)
 		os.Exit(1)
 	}
 
 	// Create dashboard server
-	server := dashboard.NewServer(manager, logger)
+	server := dashboard.NewServer(cfg, manager, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -46,14 +63,8 @@ func main() {
 		cancel()
 	}()
 
-	// Get listen address from environment or default
-	addr := os.Getenv("DASHBOARD_ADDR")
-	if addr == "" {
-		addr = ":8080"
-	}
-
 	logger.Info("Starting DevProxy Dashboard...")
-	if err := server.Start(ctx, addr); err != nil {
+	if err := server.Start(ctx, cfg.Dashboard.Addr); err != nil {
 		logger.Error("Dashboard server failed", "error", err)
 		os.Exit(1)
 	}

@@ -9,11 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"devproxy/internal/config"
 	"devproxy/internal/docker"
 	"devproxy/internal/proxy"
 )
 
 type Server struct {
+	config  *config.Config
 	manager *proxy.Manager
 	logger  *slog.Logger
 }
@@ -29,8 +31,9 @@ type ContainerInfo struct {
 	Service  string               `json:"service"`
 }
 
-func NewServer(manager *proxy.Manager, logger *slog.Logger) *Server {
+func NewServer(config *config.Config, manager *proxy.Manager, logger *slog.Logger) *Server {
 	return &Server{
+		config:  config,
 		manager: manager,
 		logger:  logger,
 	}
@@ -63,6 +66,13 @@ func (s *Server) Start(ctx context.Context, addr string) error {
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	// Prepare template data
+	data := struct {
+		RefreshInterval int
+	}{
+		RefreshInterval: s.config.Dashboard.RefreshInterval * 1000, // Convert to milliseconds
+	}
+
 	tmpl := `<!DOCTYPE html>
 <html>
 <head>
@@ -70,13 +80,13 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-            margin: 0; 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
             background: #f5f6fa;
         }
-        .main-container { 
-            display: flex; 
+        .main-container {
+            display: flex;
             min-height: 100vh;
         }
         .sidebar {
@@ -132,9 +142,9 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
         .header {
             margin-bottom: 30px;
         }
-        h1 { 
-            color: #2c3e50; 
-            margin: 0 0 10px 0; 
+        h1 {
+            color: #2c3e50;
+            margin: 0 0 10px 0;
             font-size: 1.8em;
         }
         .search-container {
@@ -168,62 +178,62 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
             color: white;
             border-color: #007bff;
         }
-        .refresh-info { 
-            color: #6c757d; 
-            font-size: 0.9em; 
-            margin-bottom: 25px; 
+        .refresh-info {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-bottom: 25px;
         }
-        .protocol-status { 
-            margin-bottom: 25px; 
-            padding: 15px; 
-            border-radius: 8px; 
+        .protocol-status {
+            margin-bottom: 25px;
+            padding: 15px;
+            border-radius: 8px;
         }
-        .protocol-https { 
-            background: #d4edda; 
-            border: 1px solid #c3e6cb; 
-            color: #155724; 
+        .protocol-https {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
         }
-        .protocol-http { 
-            background: #f8d7da; 
-            border: 1px solid #f5c6cb; 
-            color: #721c24; 
+        .protocol-http {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
         }
-        .protocol-status a { 
-            color: inherit; 
-            font-weight: bold; 
-            text-decoration: underline; 
-            cursor: pointer; 
+        .protocol-status a {
+            color: inherit;
+            font-weight: bold;
+            text-decoration: underline;
+            cursor: pointer;
         }
-        .install-instructions { 
-            margin-top: 10px; 
-            padding: 15px; 
-            background: #f8f9fa; 
-            border-radius: 4px; 
-            border-left: 3px solid #007bff; 
-            display: none; 
+        .install-instructions {
+            margin-top: 10px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #007bff;
+            display: none;
         }
-        .install-instructions.show { 
-            display: block; 
+        .install-instructions.show {
+            display: block;
         }
-        .install-instructions h4 { 
-            margin: 0 0 10px 0; 
-            color: #333; 
+        .install-instructions h4 {
+            margin: 0 0 10px 0;
+            color: #333;
         }
-        .install-instructions ol { 
-            margin: 0; 
-            padding-left: 20px; 
+        .install-instructions ol {
+            margin: 0;
+            padding-left: 20px;
         }
-        .install-instructions li { 
-            margin: 5px 0; 
+        .install-instructions li {
+            margin: 5px 0;
         }
-        .project-group { 
-            margin-bottom: 25px; 
+        .project-group {
+            margin-bottom: 25px;
             background: white;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             overflow: hidden;
         }
-        .project-header { 
+        .project-header {
             padding: 15px 20px;
             background: #f8f9fa;
             border-bottom: 1px solid #e9ecef;
@@ -335,10 +345,10 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
         .copy-button:hover {
             background: #545b62;
         }
-        .no-containers { 
-            text-align: center; 
-            color: #6c757d; 
-            padding: 40px; 
+        .no-containers {
+            text-align: center;
+            color: #6c757d;
+            padding: 40px;
             background: white;
             border-radius: 12px;
         }
@@ -368,7 +378,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
         let filteredContainers = [];
         let currentFilter = 'all';
         let searchQuery = '';
-        
+
         function loadProtocolStatus() {
             const statusDiv = document.getElementById('protocol-status');
             if (currentProtocol === 'https:') {
@@ -400,13 +410,13 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                 })
                 .catch(err => console.error('Failed to load containers:', err));
         }
-        
+
         function applyFilters() {
             filteredContainers = allContainers.filter(c => {
                 // Status filter
                 if (currentFilter === 'running' && c.status !== 'running') return false;
                 if (currentFilter === 'stopped' && c.status === 'running') return false;
-                
+
                 // Search filter
                 if (searchQuery) {
                     const query = searchQuery.toLowerCase();
@@ -417,21 +427,21 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                         c.image || '',
                         ...(c.targets?.map(t => t.Domain) || [])
                     ].join(' ').toLowerCase();
-                    
+
                     if (!searchableText.includes(query)) return false;
                 }
-                
+
                 return true;
             });
         }
-        
+
         function renderSidebar() {
             const sidebar = document.getElementById('sidebar-content');
-            
+
             // Group containers by project for sidebar
             const grouped = {};
             const standalone = [];
-            
+
             filteredContainers.forEach(c => {
                 if (c.project) {
                     if (!grouped[c.project]) {
@@ -442,9 +452,9 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                     standalone.push(c);
                 }
             });
-            
+
             let html = '<h2>Navigation</h2>';
-            
+
             // Projects
             Object.keys(grouped).sort().forEach(projectName => {
                 html += '<div class="nav-item project" onclick="scrollToProject(\'' + projectName + '\')">';
@@ -452,7 +462,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                 html += '<span class="nav-count">' + grouped[projectName].length + '</span>';
                 html += '</div>';
             });
-            
+
             // Standalone containers
             if (standalone.length > 0) {
                 html += '<div class="nav-item project" onclick="scrollToProject(\'standalone\')">';
@@ -460,7 +470,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                 html += '<span class="nav-count">' + standalone.length + '</span>';
                 html += '</div>';
             }
-            
+
             sidebar.innerHTML = html;
         }
 
@@ -470,11 +480,11 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                 container.innerHTML = '<div class="no-containers">No containers found matching your filters</div>';
                 return;
             }
-            
+
             // Group containers by project
             const grouped = {};
             const standalone = [];
-            
+
             filteredContainers.forEach(c => {
                 if (c.project) {
                     if (!grouped[c.project]) {
@@ -485,26 +495,26 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                     standalone.push(c);
                 }
             });
-            
+
             let html = '';
-            
+
             // Render compose projects
             Object.keys(grouped).sort().forEach(projectName => {
                 html += renderProjectGroup(projectName, grouped[projectName], '🐳', 'Compose Project');
             });
-            
+
             // Render standalone containers
             if (standalone.length > 0) {
                 html += renderProjectGroup('standalone', standalone, '📦', 'Standalone Containers');
             }
-            
+
             container.innerHTML = html;
         }
-        
+
         function renderProjectGroup(projectName, containers, icon, subtitle) {
             const projectId = 'project-' + projectName.replace(/[^a-zA-Z0-9]/g, '');
             const isCollapsed = localStorage.getItem(projectId + '-collapsed') === 'true';
-            
+
             let html = '<div class="project-group' + (isCollapsed ? ' collapsed' : '') + '" id="' + projectId + '">';
             html += '<div class="project-header" onclick="toggleProject(\'' + projectId + '\')">';
             html += '<div class="project-title">' + icon + ' ' + projectName;
@@ -517,23 +527,23 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
             html += '<span class="collapse-icon">▼</span>';
             html += '</div>';
             html += '</div>';
-            
+
             html += '<div class="containers-table">';
             containers.forEach(c => {
                 html += renderContainerRow(c);
             });
             html += '</div>';
-            
+
             html += '</div>';
             return html;
         }
-        
+
         function renderContainerRow(c) {
             const protocol = currentProtocol.replace(':', '');
             const displayName = c.service || c.name || 'Unknown';
             const primaryDomain = c.targets && c.targets.length > 0 ? c.targets[0].Domain : '';
             const statusClass = 'status-' + (c.status === 'running' ? 'running' : c.status === 'starting' ? 'starting' : 'stopped');
-            
+
             let html = '<div class="container-row">';
             html += '<div class="status-indicator ' + statusClass + '"></div>';
             html += '<div class="container-info">';
@@ -544,22 +554,22 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
             }
             html += '</div>';
             html += '</div>';
-            
+
             if (primaryDomain) {
                 html += '<div class="container-actions">';
                 html += '<a href="' + protocol + '://' + primaryDomain + '" target="_blank" class="link-button">Open</a>';
                 html += '<button onclick="copyToClipboard(event, \'' + protocol + '://' + primaryDomain + '\')" class="copy-button">Copy</button>';
                 html += '</div>';
             }
-            
+
             html += '</div>';
             return html;
         }
-        
+
         function toggleProject(projectId) {
             const projectGroup = document.getElementById(projectId);
             const isCollapsed = projectGroup.classList.contains('collapsed');
-            
+
             if (isCollapsed) {
                 projectGroup.classList.remove('collapsed');
                 localStorage.setItem(projectId + '-collapsed', 'false');
@@ -568,7 +578,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                 localStorage.setItem(projectId + '-collapsed', 'true');
             }
         }
-        
+
         function scrollToProject(projectName) {
             const projectId = 'project-' + projectName.replace(/[^a-zA-Z0-9]/g, '');
             const element = document.getElementById(projectId);
@@ -580,7 +590,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                 }
             }
         }
-        
+
         function setFilter(filter) {
             currentFilter = filter;
             // Update button states
@@ -588,23 +598,23 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                 btn.classList.remove('active');
             });
             document.querySelector('[onclick="setFilter(\'' + filter + '\')"]').classList.add('active');
-            
+
             applyFilters();
             renderContainers();
             renderSidebar();
         }
-        
+
         function handleSearch(query) {
             searchQuery = query;
             applyFilters();
             renderContainers();
             renderSidebar();
         }
-        
+
         function expandAll() {
             const allProjects = document.querySelectorAll('.project-group');
             const hasCollapsed = Array.from(allProjects).some(p => p.classList.contains('collapsed'));
-            
+
             allProjects.forEach(project => {
                 if (hasCollapsed) {
                     project.classList.remove('collapsed');
@@ -614,25 +624,25 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                     localStorage.setItem(project.id + '-collapsed', 'true');
                 }
             });
-            
+
             // Update button text
             const btn = document.querySelector('.expand-all-btn');
             btn.textContent = hasCollapsed ? 'Collapse All' : 'Expand All';
         }
-        
+
         function copyToClipboard(event, text) {
             navigator.clipboard.writeText(text).then(() => {
                 // Show a brief success indicator
                 const button = event.target;
                 const originalText = button.textContent;
                 const originalBackground = button.style.background;
-                
+
                 // Update button appearance
                 button.textContent = 'Copied!';
                 button.style.background = '#28a745';
                 button.style.transform = 'scale(0.95)';
                 button.style.transition = 'all 0.2s ease';
-                
+
                 // Reset after delay
                 setTimeout(() => {
                     button.textContent = originalText;
@@ -644,7 +654,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                 console.error('Failed to copy to clipboard:', err);
                 const button = event.target;
                 const originalText = button.textContent;
-                
+
                 button.textContent = 'Failed!';
                 button.style.background = '#dc3545';
                 setTimeout(() => {
@@ -665,15 +675,15 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                 }
             }
         }
-        
-        // Load initially and refresh every 30 seconds
+
+        // Load initially and refresh at configured interval
         document.addEventListener('DOMContentLoaded', function() {
             loadProtocolStatus();
             loadContainers();
             setInterval(function() {
                 loadProtocolStatus();
                 loadContainers();
-            }, 30000);
+            }, {{.RefreshInterval}});
         });
     </script>
 </head>
@@ -685,14 +695,14 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                 <div class="nav-item">Loading...</div>
             </div>
         </div>
-        
+
         <div class="content">
             <div class="header">
                 <h1>DevProxy Dashboard</h1>
                 <div id="protocol-status" class="protocol-status"></div>
-                
+
                 <div class="search-container">
-                    <input type="text" class="search-input" placeholder="Search containers, projects, domains..." 
+                    <input type="text" class="search-input" placeholder="Search containers, projects, domains..."
                            oninput="handleSearch(this.value)">
                     <div class="filter-buttons">
                         <button class="filter-btn active" onclick="setFilter('all')">All</button>
@@ -700,26 +710,36 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
                         <button class="filter-btn" onclick="setFilter('stopped')">Stopped</button>
                     </div>
                 </div>
-                
-                <div class="refresh-info">Auto-refresh every 30 seconds</div>
+
+                <div class="refresh-info">Auto-refresh every {{.RefreshInterval | div 1000}} seconds</div>
             </div>
-            
+
             <div id="containers">Loading...</div>
         </div>
-        
+
         <button class="expand-all-btn" onclick="expandAll()">Expand All</button>
     </div>
 </body>
 </html>`
 
-	t, err := template.New("dashboard").Parse(tmpl)
+	// Create template with custom functions
+	funcMap := template.FuncMap{
+		"div": func(divisor, dividend int) int {
+			if dividend != 0 {
+				return dividend / divisor
+			}
+			return 0
+		},
+	}
+
+	t, err := template.New("dashboard").Funcs(funcMap).Parse(tmpl)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	t.Execute(w, nil)
+	t.Execute(w, data)
 }
 
 func (s *Server) handleAPIContainers(w http.ResponseWriter, r *http.Request) {
@@ -773,17 +793,30 @@ func (s *Server) handleAPIContainers(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		container := ContainerInfo{
-			ID:       containerInfo.ID[:12], // Shortened ID
-			Name:     containerName,
-			Image:    image,
-			Status:   status,
-			Targets:  targets,
-			Protocol: "", // Will be determined by frontend based on current location
-			Project:  project,
-			Service:  service,
+		// Filter containers based on configuration
+		shouldInclude := true
+		if !s.config.Dashboard.ShowAllProjects {
+			for _, excludedProject := range s.config.Dashboard.ExcludedProjects {
+				if project == excludedProject {
+					shouldInclude = false
+					break
+				}
+			}
 		}
-		containers = append(containers, container)
+
+		if shouldInclude {
+			container := ContainerInfo{
+				ID:       containerInfo.ID[:12], // Shortened ID
+				Name:     containerName,
+				Image:    image,
+				Status:   status,
+				Targets:  targets,
+				Protocol: "", // Will be determined by frontend based on current location
+				Project:  project,
+				Service:  service,
+			}
+			containers = append(containers, container)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

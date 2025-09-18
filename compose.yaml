@@ -18,7 +18,15 @@ services:
     labels:
       - devproxy.enabled=false
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:2019/config/"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:2019/config/",
+        ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -35,6 +43,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - CADDY_ADMIN_URL=http://caddy:2019
+      # DevProxy configuration - reads from .env file or uses defaults
+      - DEVPROXY_LOG_LEVEL=${DEVPROXY_LOG_LEVEL:-info}
+      - DEVPROXY_DOMAIN_SUFFIX=${DEVPROXY_DOMAIN_SUFFIX:-localhost}
     networks:
       - devproxy
     labels:
@@ -58,8 +69,13 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
-      - DASHBOARD_PORT=8080
       - CADDY_ADMIN_URL=http://caddy:2019
+      # DevProxy configuration - reads from .env file or uses defaults
+      - DEVPROXY_DASHBOARD_REFRESH=${DEVPROXY_DASHBOARD_REFRESH:-30}
+      - DEVPROXY_DASHBOARD_EXCLUDE=${DEVPROXY_DASHBOARD_EXCLUDE:-devproxy}
+      - DEVPROXY_DASHBOARD_SHOW_ALL=${DEVPROXY_DASHBOARD_SHOW_ALL:-false}
+      - DEVPROXY_LOG_LEVEL=${DEVPROXY_LOG_LEVEL:-info}
+      - DASHBOARD_ADDR=${DASHBOARD_ADDR:-:8080}
     networks:
       - devproxy
     labels:

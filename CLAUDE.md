@@ -114,13 +114,31 @@ devproxy/
 └── CLAUDE.md                    # Development documentation
 ```
 
+## Configuration System
+DevProxy uses a simple environment variable-based configuration system:
+- **Zero config required**: Works perfectly with defaults
+- **Environment variables only**: All options use `DEVPROXY_` prefix
+- **Non-breaking**: Existing setups continue to work
+- **Flexible filtering**: Dashboard can show/hide projects dynamically
+- **Smart defaults**: Sensible values for all settings
+
+### Key Configuration Options
+- `DEVPROXY_LOG_LEVEL`: Logging verbosity (debug/info/warn/error)
+- `DEVPROXY_DASHBOARD_REFRESH`: Auto-refresh interval in seconds
+- `DEVPROXY_DASHBOARD_EXCLUDE`: Comma-separated projects to hide
+- `DEVPROXY_DASHBOARD_SHOW_ALL`: Show all containers including system ones
+- `DEVPROXY_DOMAIN_SUFFIX`: Domain suffix for containers
+
+See `CONFIG.md` for complete configuration reference.
+
 ## Development Notes
 - Uses Go 1.23+ for `log/slog` package
 - Requires Docker socket access for container monitoring
 - Caddy admin API runs on port 2019
 - HTTP/HTTPS traffic on ports 80/443
-- Dashboard runs on port 8080
+- Dashboard runs on port 8080 (configurable)
 - Uses `devproxy` Docker network for isolation
+- Configuration loaded from `internal/config/config.go`
 
 ## Services in Docker Compose
 - `caddy`: Reverse proxy handling HTTPS and routing

@@ -245,22 +245,94 @@ devproxy/
 
 ## ⚙️ Configuration
 
-DevProxy works without configuration, but offers these optional settings:
+DevProxy works perfectly without any configuration, but offers flexible customization options when needed.
 
-### Environment Variables
+### 🎛️ DevProxy Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CADDY_ADMIN_URL` | Caddy admin API URL | `http://caddy:2019` |
-| `DEVPROXY_PORT` | Override container port | Auto-detected |
+| Environment Variable | Description | Default | Example |
+|---------------------|-------------|---------|---------|
+| `DEVPROXY_LOG_LEVEL` | Logging verbosity (debug/info/warn/error) | `info` | `debug` |
+| `DEVPROXY_DOMAIN_SUFFIX` | Domain suffix for containers | `localhost` | `dev.local` |
+| `CADDY_ADMIN_URL` | Caddy admin API URL | `http://caddy:2019` | `http://localhost:2019` |
 
-### Container Labels
+### 📊 Dashboard Configuration
+
+| Environment Variable | Description | Default | Example |
+|---------------------|-------------|---------|---------|
+| `DEVPROXY_DASHBOARD_REFRESH` | Auto-refresh interval (seconds) | `30` | `10` |
+| `DEVPROXY_DASHBOARD_EXCLUDE` | Projects to hide (comma-separated) | `devproxy` | `devproxy,test,staging` |
+| `DEVPROXY_DASHBOARD_SHOW_ALL` | Show all containers including system ones | `false` | `true` |
+| `DASHBOARD_ADDR` | Dashboard listening address | `:8080` | `:3000` |
+
+### 🏷️ Container Labels
 
 | Label | Description | Example |
 |-------|-------------|---------|
 | `devproxy.enabled` | Enable/disable proxy | `false` |
 | `devproxy.domain` | Custom domain | `api.mycompany.localhost` |
 | `devproxy.port` | Custom port | `3000` |
+
+### 📝 Usage Examples
+
+#### Default (Zero Configuration)
+```bash
+docker compose up -d
+# Works perfectly with sensible defaults
+```
+
+#### Custom Dashboard Refresh Rate
+```bash
+# Dashboard updates every 10 seconds instead of 30
+DEVPROXY_DASHBOARD_REFRESH=10 docker compose up -d
+```
+
+#### Show All Containers in Dashboard
+```bash
+# Include DevProxy's own containers in dashboard
+DEVPROXY_DASHBOARD_SHOW_ALL=true docker compose up -d
+```
+
+#### Hide Multiple Projects
+```bash
+# Hide development and test projects from dashboard
+DEVPROXY_DASHBOARD_EXCLUDE=devproxy,test,staging docker compose up -d
+```
+
+#### Debug Logging
+```bash
+# Enable detailed debug logging
+DEVPROXY_LOG_LEVEL=debug docker compose up -d
+```
+
+#### Using .env File (Recommended)
+Create a `.env` file in your DevProxy directory:
+```bash
+# .env
+DEVPROXY_LOG_LEVEL=debug
+DEVPROXY_DASHBOARD_REFRESH=15
+DEVPROXY_DASHBOARD_EXCLUDE=devproxy,internal
+DEVPROXY_DASHBOARD_SHOW_ALL=false
+```
+
+Then start normally:
+```bash
+docker compose up -d
+```
+
+#### Per-Container Configuration
+```bash
+# Custom port via environment variable
+docker run -d --name my-api -e DEVPROXY_PORT=3000 node:alpine
+
+# Custom port via label
+docker run -d --name my-api --label devproxy.port=3000 node:alpine
+
+# Custom domain via label
+docker run -d --name my-api --label devproxy.domain=api.mycompany.localhost node:alpine
+
+# Disable proxy for a container
+docker run -d --name utility --label devproxy.enabled=false alpine sleep 3600
+```
 
 ## ⚠️ Important Limitations
 

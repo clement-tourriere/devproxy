@@ -3,11 +3,12 @@ package proxy
 import (
 	"context"
 	"log/slog"
-	"os"
 	"sync"
 
 	"devproxy/internal/caddy"
+	"devproxy/internal/config"
 	"devproxy/internal/docker"
+
 	"github.com/docker/docker/api/types"
 )
 
@@ -23,18 +24,13 @@ type Manager struct {
 	lastConfigHash string
 }
 
-func NewManager(logger *slog.Logger) (*Manager, error) {
+func NewManager(cfg *config.Config, logger *slog.Logger) (*Manager, error) {
 	monitor, err := docker.NewMonitor(logger)
 	if err != nil {
 		return nil, err
 	}
 
-	caddyURL := os.Getenv("CADDY_ADMIN_URL")
-	if caddyURL == "" {
-		caddyURL = "http://localhost:2019"
-	}
-
-	caddyClient := caddy.NewClient(caddyURL, logger)
+	caddyClient := caddy.NewClient(cfg.DevProxy.CaddyAdminURL, logger)
 
 	return &Manager{
 		dockerMonitor:   monitor,
